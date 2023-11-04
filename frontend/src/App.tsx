@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './App.css';
 import { useQuery } from '@tanstack/react-query';
 import { QUIZ_RESPONSE_SCHEMA, STORY_RESPONSE_SCHEMA, fetchQuizResponse, fetchStory } from './constants';
-import { Textarea, Button, Box } from '@chakra-ui/react'
+import { Textarea, Button, Box, Input } from '@chakra-ui/react'
 import { Image } from '@chakra-ui/react'
 import { Text } from '@chakra-ui/react'
 import { CheckCircleIcon, CloseIcon } from '@chakra-ui/icons'
@@ -12,10 +12,11 @@ import Storyverse from './storyverse.png'
 function App() {
   const [currentPage, setCurrentPage] = useState(0)
   const [currentStoryPage, setCurrentStoryPage] = useState(0)
+  const [currentAge, setCurrentAge] = useState('')
   const [prompt, setPrompt] = useState('')
   const { data, isLoading, refetch } = useQuery<STORY_RESPONSE_SCHEMA>({
     queryKey: ['generate'],
-    queryFn: () => fetchStory(prompt),
+    queryFn: () => fetchStory(currentAge, prompt),
     refetchOnWindowFocus: false,
     enabled: false
   })
@@ -46,6 +47,7 @@ function App() {
                 Welcome to the Storyverse!
               </Text>
               <Image src={Storyverse} />
+              <Input placeholder={"Input your age"} value={currentAge} onChange={(e) => setCurrentAge(e.target.value)} />
               <Textarea
                 placeholder="Talk about the story you want to read"
                 value={prompt}
