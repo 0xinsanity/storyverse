@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List
 from enum import Enum
 import uvicorn
+import requests
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv, find_dotenv
@@ -26,7 +27,9 @@ chat = ChatOpenAI(temperature=0.0, model=chat_llm_model)
 
 image_llm = OpenAI(temperature=0.9)
 
-def create_story(outline, age):
+together_ai = 'https://api.together.xyz/inference'
+
+def create_story_v1(outline, age):
     template_string = """Generate a story for a {age} year old girl \
         which consists of two paragraphs with each paragraph four sentences long. \
         The story should be about the following: ```{outline}```
@@ -49,6 +52,51 @@ def create_story(outline, age):
 
     return story
 
+def create_story(outline, age):
+    template_string = """Generate a story for a {age} year old girl \
+        which consists of four paragraphs with each paragraph four sentences long. \
+        The story should be about the following: ```{outline}``` \
+        In the story, there should be a dramatic situation and a happy ending. \
+        After the story, generate a question to check the comprehension of the story. \
+        Response MUST be in json format with each key and value being paragraph number \
+        and text of each paragraph being its value, and for the key "question" have the generated question as value.
+    """
+
+    prompt_template = ChatPromptTemplate.from_template(template_string)
+
+    #prompt_template.messages[0].prompt
+    story_prompt = prompt_template.format_messages(
+                    age=age,
+                    outline=outline)
+    story_response = chat(story_prompt)
+
+    story_response.content = json.loads(story_response.content)
+    story = story_response.content
+    paras = [v for k, v in story.items() if k != 'question']
+    story.update({'story': "\n".join(paras)})
+
+    return story
+
+def validate_answer(story, answer):
+    template_string = """
+        For the following story, question and answer in triple single quotes, \
+        return 'CORRECT' if the answer correctly answers the question, \
+        and 'FALSE' if it does not answer the question. \
+        story: ```{story}``` \
+        question: ```{question}``` \
+        answer: ```{answer}```
+    """
+
+    prompt_template = ChatPromptTemplate.from_template(template_string)
+
+    prompt = prompt_template.format_messages(
+                    story=story["story"],
+                    question=story["question"],
+                    answer=answer)
+    response = chat(prompt)
+
+    return response.content
+
 def _generate_image_description(story, age, scene):
     image_desc = """Given the following story context: {story}. \
         Generate an image description that MUST be relevant for a {age} year old and \
@@ -67,7 +115,7 @@ def generate_image_descriptions(story, age):
     image_descriptions = {}
 
     for i, scene in story.items():
-        if i != 'story':
+        if i != 'story' and i != 'question':
             image_desc = _generate_image_description(story, age, scene)
             image_descriptions[i] = image_desc
 
@@ -87,10 +135,36 @@ def _generate_image(image_description, age):
     
     return image_url
 
+def _generate_image_stable_diff(image_desc):
+    template="""Generate the image so that it is in the style of a story book fit for 4 year old children. \
+        The following is a description of a scene: {0}.
+    """.format(image_desc)
+
+    response = requests.post(together_ai, json={
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "prompt": "\n\n\n\n\n    \"prompt\": \"\",".format(template),
+        "negative_prompt": "",
+        "request_type": "image-model-inference",
+        "width": 1024,
+        "height": 1024,
+        "steps": 20,
+        "n": 1,
+        "seed": 42,
+        "sessionKey": "921f5c1d53fd74664f3e2366a613bfaafecc0621",
+        "type": "image"
+    }, headers={
+        "Authorization": "Bearer 682d9fcc8e9b12a8df507385bb835b280dcfd226c5c1d8dc41ddb0b1decd5eb1",
+    })
+
+    images = json.loads(response.content)
+    image = images['output']['choices'][0]
+    return image
+
 def generate_images(image_descriptions, age):
     images = {}
     for i, image_desc in image_descriptions.items():
-        image_url = _generate_image(image_desc, age)
+        # image_url = _generate_image(image_desc, age)
+        image_url = _generate_image_stable_diff(image_desc, age)
         images[i] = image_url
     
     return images
