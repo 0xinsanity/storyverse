@@ -59,7 +59,7 @@ function App() {
               <div className="grid">
                 {data && data?.story.length > 0 ?
                   <>
-                    <Image src={data.story[currentStoryPage].image} />
+                    <Image src={`data:image/png;base64,${data.story[currentStoryPage].image}`} />
                     <Text>{data.story[currentStoryPage].page_text}</Text>
                     <div className="split">
                       <Button onClick={() => {

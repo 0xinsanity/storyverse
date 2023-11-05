@@ -99,7 +99,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://storyverse-l2tovtpv2-nhano0228.vercel.app"],  # Allows all origins
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -131,7 +131,7 @@ async def generate(request_body: StoryGenerateRequestBody):
     descriptions = generate_image_descriptions(story, request_body.age)
     images = generate_images(descriptions, request_body.age)
 
-    return_val = {"story": [], "first_question": ""}
+    return_val = {"story": [], "first_question": "What did Li do in San Francisco?"}
 
     for i in range(len(descriptions)):
         r = {
