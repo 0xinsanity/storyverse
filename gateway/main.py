@@ -31,7 +31,7 @@ together_ai = 'https://api.together.xyz/inference'
 
 def create_story_v1(outline, age):
     template_string = """Generate a story for a {age} year old girl \
-        which consists of two paragraphs with each paragraph four sentences long. \
+        which consists of three paragraphs with each paragraph four sentences long. \
         The story should be about the following: ```{outline}```
         In the story, there should be a dramatic situation and a happy ending. \
         Response MUST be in json format with each key and value being paragraph number \
@@ -54,7 +54,7 @@ def create_story_v1(outline, age):
 
 def create_story(outline, age):
     template_string = """Generate a story for a {age} year old girl \
-        which consists of four paragraphs with each paragraph four sentences long. \
+        which consists of three paragraphs with each paragraph four sentences long. \
         The story should be about the following: ```{outline}``` \
         In the story, there should be a dramatic situation and a happy ending. \
         After the story, generate a question to check the comprehension of the story. \
@@ -74,7 +74,6 @@ def create_story(outline, age):
     story = story_response.content
     paras = [v for k, v in story.items() if k != 'question']
     story.update({'story': "\n".join(paras)})
-
     return story
 
 def validate_answer(story, answer):
@@ -142,7 +141,7 @@ def _generate_image_stable_diff(image_desc):
 
     response = requests.post(together_ai, json={
         "model": "stabilityai/stable-diffusion-xl-base-1.0",
-        "prompt": "\n\n\n\n\n    \"prompt\": \"\",".format(template),
+        "prompt": template,
         "negative_prompt": "",
         "request_type": "image-model-inference",
         "width": 1024,
@@ -155,8 +154,8 @@ def _generate_image_stable_diff(image_desc):
     }, headers={
         "Authorization": "Bearer 682d9fcc8e9b12a8df507385bb835b280dcfd226c5c1d8dc41ddb0b1decd5eb1",
     })
-
     images = json.loads(response.content)
+    print("AT TRACE:")
     image = images['output']['choices'][0]
     return image
 
@@ -164,7 +163,7 @@ def generate_images(image_descriptions, age):
     images = {}
     for i, image_desc in image_descriptions.items():
         # image_url = _generate_image(image_desc, age)
-        image_url = _generate_image_stable_diff(image_desc, age)
+        image_url = _generate_image_stable_diff(image_desc)
         images[i] = image_url
     
     return images
@@ -202,15 +201,22 @@ class StoryGenerateResponse(BaseModel):
 @app.post("/story", response_model=StoryGenerateResponse)
 async def generate(request_body: StoryGenerateRequestBody):
     story = create_story(request_body.prompt, request_body.age)
+    print("STORIES")
+    print(story)
     descriptions = generate_image_descriptions(story, request_body.age)
+    print("DESCRIPTIONS")
+    print(descriptions)
     images = generate_images(descriptions, request_body.age)
+    #import pdb; pdb.set_trace()
+    print("IMAGES")
+    print(images)
 
-    return_val = {"story": [], "first_question": "What did Li do in San Francisco?"}
+    return_val = {"story": [], "first_question": story["question"]}
 
     for i in range(len(descriptions)):
         r = {
-            "page_text": story["paragraph"+str(i+1)],
-            "image": images["paragraph"+str(i+1)]
+            "page_text": story[str(i+1)],
+            "image": images[str(i+1)]['image_base64']
         }
         return_val["story"].append(r)
     

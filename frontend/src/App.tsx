@@ -7,6 +7,7 @@ import { Image } from '@chakra-ui/react'
 import { Text } from '@chakra-ui/react'
 import { CheckCircleIcon, CloseIcon } from '@chakra-ui/icons'
 import Storyverse from './storyverse.png'
+import _ from 'lodash';
 
 
 function App() {
@@ -59,7 +60,9 @@ function App() {
               <div className="grid">
                 {data && data?.story.length > 0 ?
                   <>
-                    <Image src={`data:image/png;base64,${data.story[currentStoryPage].image}`} />
+                    {_.map(data.story, (x, i) => (
+                      i === currentStoryPage ? <Image src={`data:image/png;base64,${data.story[i].image}`} /> : null
+                    ))}
                     <Text>{data.story[currentStoryPage].page_text}</Text>
                     <div className="split">
                       <Button onClick={() => {
