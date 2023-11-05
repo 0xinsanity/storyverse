@@ -28,7 +28,7 @@ image_llm = OpenAI(temperature=0.9)
 
 def create_story(outline, age):
     template_string = """Generate a story for a {age} year old girl \
-        which consists of four paragraphs with each paragraph four sentences long. \
+        which consists of two paragraphs with each paragraph four sentences long. \
         The story should be about the following: ```{outline}```
         In the story, there should be a dramatic situation and a happy ending. \
         Response MUST be in json format with each key and value being paragraph number \
@@ -76,12 +76,14 @@ def generate_image_descriptions(story, age):
 def _generate_image(image_description, age):
     prompt = PromptTemplate(
         input_variables=["image_description"],
-        template="""Generate the image so that it is in the style of a story book fit for {age} year old children. \
+        template="""Generate the image so that it is in the style of a story book fit for 4 year old children. \
             The following is a description of a scene: {image_description}.
         """
     )
     chain = LLMChain(llm=image_llm, prompt=prompt)
-    image_url = DallEAPIWrapper().run(chain.run(image_description))
+    image_url = DallEAPIWrapper().run(chain.run(
+        image_description
+    ))
     
     return image_url
 
@@ -128,23 +130,17 @@ async def generate(request_body: StoryGenerateRequestBody):
     story = create_story(request_body.prompt, request_body.age)
     descriptions = generate_image_descriptions(story, request_body.age)
     images = generate_images(descriptions, request_body.age)
-    print(story)
-    print(descriptions)
-    print(images)
 
     return_val = {"story": [], "first_question": ""}
 
     for i in range(len(descriptions)):
         r = {
-            "page_text": story["paragraph"+i],
-            "image": images["paragraph"+i]
+            "page_text": story["paragraph"+str(i+1)],
+            "image": images["paragraph"+str(i+1)]
         }
-        return_val["story"] += r
+        return_val["story"].append(r)
     
-    return {
-        "story": return_val,
-        "first_question": test_question
-    }
+    return return_val
 
 
 class QuizResponseRequestBody(BaseModel):
