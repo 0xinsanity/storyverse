@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv, find_dotenv
 _ = load_dotenv(find_dotenv())
 
+import json
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
@@ -25,7 +26,7 @@ chat = ChatOpenAI(temperature=0.0, model=chat_llm_model)
 
 image_llm = OpenAI(temperature=0.9)
 
-def create_story(outline):
+def create_story(outline, age):
     template_string = """Generate a story for a {age} year old girl \
         which consists of four paragraphs with each paragraph four sentences long. \
         The story should be about the following: ```{outline}```
@@ -38,16 +39,17 @@ def create_story(outline):
 
     #prompt_template.messages[0].prompt
     story_prompt = prompt_template.format_messages(
-                    age=6,
+                    age=age,
                     outline=outline)
     story_response = chat(story_prompt)
 
+    story_response.content = json.loads(story_response.content)
     story = story_response.content
-    story.update({'story': "\n".join(story_response.values())})
+    story.update({'story': "\n".join(story.values())})
 
     return story
 
-def _generate_image_description(story, scene):
+def _generate_image_description(story, age, scene):
     image_desc = """Given the following story context: {story}. \
         Generate an image description that MUST be relevant for a {age} year old and \
         for the following scene: {scene} and response MUST be string.
@@ -55,27 +57,26 @@ def _generate_image_description(story, scene):
     image_template = ChatPromptTemplate.from_template(image_desc)
 
     image_prompt = image_template.format_messages(
-                    age=6,
-                    scenes=scene,
+                    age=age,
+                    scene=scene,
                     story=story)
     image_scene_desc = chat(image_prompt)
-
     return image_scene_desc.content
 
-def generate_image_descriptions(story):
+def generate_image_descriptions(story, age):
     image_descriptions = {}
 
     for i, scene in story.items():
         if i != 'story':
-            image_desc = _generate_image_description(story, scene)
+            image_desc = _generate_image_description(story, age, scene)
             image_descriptions[i] = image_desc
 
     return image_descriptions
 
-def _generate_image(image_description):
+def _generate_image(image_description, age):
     prompt = PromptTemplate(
         input_variables=["image_description"],
-        template="""Generate the image so that it is in the style of a story book fit for 6 year old children. \
+        template="""Generate the image so that it is in the style of a story book fit for {age} year old children. \
             The following is a description of a scene: {image_description}.
         """
     )
@@ -84,10 +85,10 @@ def _generate_image(image_description):
     
     return image_url
 
-def generate_images(image_descriptions):
+def generate_images(image_descriptions, age):
     images = {}
     for i, image_desc in image_descriptions.items():
-        image_url = _generate_image(image_desc)
+        image_url = _generate_image(image_desc, age)
         images[i] = image_url
     
     return images
@@ -124,27 +125,24 @@ class StoryGenerateResponse(BaseModel):
 
 @app.post("/story", response_model=StoryGenerateResponse)
 async def generate(request_body: StoryGenerateRequestBody):
-    # Access the prompt with request_body.prompt
-    # Replace the following line with your logic to generate story and quiz
+    story = create_story(request_body.prompt, request_body.age)
+    descriptions = generate_image_descriptions(story, request_body.age)
+    images = generate_images(descriptions, request_body.age)
+    print(story)
+    print(descriptions)
+    print(images)
+
+    return_val = {"story": [], "first_question": ""}
+
+    for i in range(len(descriptions)):
+        r = {
+            "page_text": story["paragraph"+i],
+            "image": images["paragraph"+i]
+        }
+        return_val["story"] += r
+    
     return {
-        "story": [
-            {
-                "page_text": test_txt,
-                "image": test_img,
-            },
-            {
-                "page_text": test_txt,
-                "image": test_img,
-            },
-            {
-                "page_text": test_txt,
-                "image": test_img,
-            },
-            {
-                "page_text": test_txt,
-                "image": test_img,
-            },
-        ],
+        "story": return_val,
         "first_question": test_question
     }
 
