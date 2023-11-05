@@ -5,6 +5,4 @@ services:
     volumes:
       - .:/gateway
     ports:
-      - "8000:80"
-    environment:
-      - NAME=World
+      - "8000:8000"
