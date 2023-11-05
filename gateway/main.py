@@ -1,9 +1,96 @@
+import os
+import openai
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from enum import Enum
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+
+from dotenv import load_dotenv, find_dotenv
+_ = load_dotenv(find_dotenv())
+
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+
+from langchain.utilities.dalle_image_generator import DallEAPIWrapper
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.llms import OpenAI
+
+openai.api_key = os.environ['OPENAI_API_KEY']
+
+chat_llm_model = "gpt-3.5-turbo-0301"
+chat = ChatOpenAI(temperature=0.0, model=chat_llm_model)
+
+image_llm = OpenAI(temperature=0.9)
+
+def create_story(outline):
+    template_string = """Generate a story for a {age} year old girl \
+        which consists of four paragraphs with each paragraph four sentences long. \
+        The story should be about the following: ```{outline}```
+        In the story, there should be a dramatic situation and a happy ending. \
+        Response MUST be in json format with each key and value being paragraph number \
+        and text of each paragraph being its value.
+    """
+
+    prompt_template = ChatPromptTemplate.from_template(template_string)
+
+    #prompt_template.messages[0].prompt
+    story_prompt = prompt_template.format_messages(
+                    age=6,
+                    outline=outline)
+    story_response = chat(story_prompt)
+
+    story = story_response.content
+    story.update({'story': "\n".join(story_response.values())})
+
+    return story
+
+def _generate_image_description(story, scene):
+    image_desc = """Given the following story context: {story}. \
+        Generate an image description that MUST be relevant for a {age} year old and \
+        for the following scene: {scene} and response MUST be string.
+    """
+    image_template = ChatPromptTemplate.from_template(image_desc)
+
+    image_prompt = image_template.format_messages(
+                    age=6,
+                    scenes=scene,
+                    story=story)
+    image_scene_desc = chat(image_prompt)
+
+    return image_scene_desc.content
+
+def generate_image_descriptions(story):
+    image_descriptions = {}
+
+    for i, scene in story.items():
+        if i != 'story':
+            image_desc = _generate_image_description(story, scene)
+            image_descriptions[i] = image_desc
+
+    return image_descriptions
+
+def _generate_image(image_description):
+    prompt = PromptTemplate(
+        input_variables=["image_description"],
+        template="""Generate the image so that it is in the style of a story book fit for 6 year old children. \
+            The following is a description of a scene: {image_description}.
+        """
+    )
+    chain = LLMChain(llm=image_llm, prompt=prompt)
+    image_url = DallEAPIWrapper().run(chain.run(image_description))
+    
+    return image_url
+
+def generate_images(image_descriptions):
+    images = {}
+    for i, image_desc in image_descriptions.items():
+        image_url = _generate_image(image_desc)
+        images[i] = image_url
+    
+    return images
 
 app = FastAPI()
 
@@ -27,6 +114,7 @@ class Story(BaseModel):
 
 class StoryGenerateRequestBody(BaseModel):
     prompt: str
+    age: str
 
 
 class StoryGenerateResponse(BaseModel):
