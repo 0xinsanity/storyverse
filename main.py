@@ -242,3 +242,7 @@ async def quiz_response(request_body: QuizResponseRequestBody):
         "next_question": ""
     }
 
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World. Welcome to Storyverse!"}
